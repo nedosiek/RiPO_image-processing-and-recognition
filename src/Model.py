@@ -5,19 +5,25 @@ import torch.nn as nn
 from torchvision import transforms
 from torchvision import datasets
 from torch.utils.data import DataLoader
+from tqdm import tqdm
 
 device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
+if device.type == "cuda":
+    torch.backends.cudnn.benchmark = True
+
 liczba_budynkow = 10
 
-data_transforms = transforms.Compose([
-    transforms.Resize(256),                 #Skalujemy krótszy bok do 256,
+data_transforms = transforms.Compose([              #Skalujemy krótszy bok do 256,
     transforms.RandomResizedCrop(256),      #a potem wycinamy losowe 256x256
     transforms.RandomHorizontalFlip(),      #losowo obraca albo nie poziomo
     transforms.RandomRotation(30),          # obrót do 30 stopni
+    transforms.RandomPerspective(distortion_scale=0.3, p=0.5), # znieksztalca udajac ze stoi sie blizej, dalej lub z boku
     transforms.ColorJitter(                 # zmiana kontrastu/jasności tez losowo
         brightness=0.3,
-        contrast=0.3
+        contrast=0.3,
+        saturation=0.3,
+        hue=0.05
     ),
     transforms.ToTensor(),
     transforms.Normalize([0.485, 0.456, 0.406], [0.229, 0.224, 0.225])
@@ -29,15 +35,15 @@ val_transforms = transforms.Compose([
     transforms.Normalize([0.485, 0.456, 0.406], [0.229, 0.224, 0.225])
 ])
 
-Model_src = 'model_pwr_best.pth'
+Model_src = 'model_pwr.pth'
 train_dir = 'dataset'
 val_dir = 'val'
 
 train_data = datasets.ImageFolder(train_dir, transform=data_transforms)
 val_data = datasets.ImageFolder(val_dir, transform=val_transforms)
 
-train_loader = DataLoader(train_data, batch_size=32, shuffle=True)
-val_loader = DataLoader(val_data, batch_size=32, shuffle=False)
+train_loader = DataLoader(train_data, batch_size=32, shuffle=True, pin_memory=True)
+val_loader = DataLoader(val_data, batch_size=32, shuffle=False, pin_memory=True)
 
 class SimpleModel(nn.Module):
     def __init__(self):
@@ -92,7 +98,7 @@ for epoch in range(num_epochs):
     model.train()
     running_loss = 0.0
 
-    for images, labels in train_loader:
+    for images, labels in tqdm(train_loader, desc=f"Trenowanie epoki {epoch+1}"):
         images = images.to(device)
         labels = labels.to(device)
 
@@ -120,8 +126,8 @@ for epoch in range(num_epochs):
     accuracy = 100 * correct / total
     if(accuracy > best_accuracy):
         best_accuracy = accuracy
-        torch.save(model.state_dict(), 'model_pwr_best.pth')
-        print(f"Zapisano najlepszy model (Acc: {accuracy:.1f}%) Plik: model_pwr_best.pth")
+        torch.save(model.state_dict(), 'model_pwr.pth')
+        print(f"Zapisano najlepszy model (Acc: {accuracy:.1f}%) Plik: model_pwr.pth")
     scheduler.step(accuracy)
     current_lr = optimizer.param_groups[0]['lr']
     print(f"Aktualny LR: {current_lr}")
