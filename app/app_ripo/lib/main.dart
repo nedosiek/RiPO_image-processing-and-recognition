@@ -319,7 +319,7 @@ class _LiveScannerScreenState extends State<LiveScannerScreen>{
   void initState() {
     super.initState();
     //inicjalizcaja tylnej kamery
-    _controller = CameraController(widget.cameras[0], ResolutionPreset.low, enableAudio: false);
+    _controller = CameraController(widget.cameras[0], ResolutionPreset.medium, enableAudio: false);
     _controller.initialize().then((_) {
       if (!mounted) return;
       setState(() {});
@@ -327,7 +327,7 @@ class _LiveScannerScreenState extends State<LiveScannerScreen>{
       // streamowanie na biezaco
       _controller.startImageStream((CameraImage image){
         _frameCount++;
-        if (_frameCount%60 == 0 && !_isProcessing){
+        if (_frameCount%120 == 0 && !_isProcessing){
           _processStreamFrame(image);
         }
       });
@@ -342,6 +342,10 @@ class _LiveScannerScreenState extends State<LiveScannerScreen>{
     try {
       XFile picture = await _controller.takePicture();
       File rawImage = File(picture.path);
+
+      if (_lastScannedImage != null && await _lastScannedImage!.exists()) {
+        await _lastScannedImage!.delete();
+      }
 
       _lastScannedImage = rawImage; // zapisujemy jako ostatnie
       await _uploadSilent(rawImage);

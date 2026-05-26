@@ -9,6 +9,7 @@ import torch.nn as nn
 from torchvision import transforms
 import torchvision.models as models
 from PIL import Image
+from Model import SimpleModel
 
 app = FastAPI()
 
@@ -38,38 +39,6 @@ def udp_server():
 threading.Thread(target=udp_server, daemon=True).start()
 
 
-# struktura sieci/modulu
-class SimpleModel(nn.Module):
-    def __init__(self):
-        super(SimpleModel, self).__init__()
-        self.conv1 = nn.Conv2d(3, 32, 3, padding=1)
-        self.conv2 = nn.Conv2d(32, 64, 3, padding=1)
-        self.conv3 = nn.Conv2d(64, 128, 3, padding=1)
-        self.conv4 = nn.Conv2d(128, 256, kernel_size=3, padding=1)
-
-        self.bn1 = nn.BatchNorm2d(32)
-        self.bn2 = nn.BatchNorm2d(64)
-        self.bn3 = nn.BatchNorm2d(128)
-        self.bn4 = nn.BatchNorm2d(256)
-
-        self.pool = nn.MaxPool2d(2, 2)
-        self.dropout = nn.Dropout(0.5)
-
-        self.fc1 = nn.Linear(256 * 16 * 16, 512)
-        self.fc2 = nn.Linear(512, 10)
-
-    def forward(self, x):
-        x = self.pool(torch.relu(self.bn1(self.conv1(x))))
-        x = self.pool(torch.relu(self.bn2(self.conv2(x))))
-        x = self.pool(torch.relu(self.bn3(self.conv3(x))))
-        x = self.pool(torch.relu(self.bn4(self.conv4(x))))
-
-        x = x.view(x.size(0), -1)  # Spłaszczanie
-        x = torch.relu(self.fc1(x))
-        x = self.dropout(x)
-        x = self.fc2(x)
-        return x
-
 # ladowanie wag
 device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 # wczytywanie modelu
@@ -85,16 +54,10 @@ general_model = models.mobilenet_v3_small(weights=models.MobileNet_V3_Small_Weig
 general_model.to(device)
 general_model.eval()
 
-BAD_IMAGENET_CLASSES = {
-    # Pojazdy
-    436: 'beach wagon', 479: 'car wheel', 511: 'convertible', 575: 'golfcart', 609: 'jeep',
-    627: 'limousine', 656: 'minivan', 661: 'Model T', 717: 'pickup', 734: 'police cruiser',
-    751: 'racer', 779: 'school bus', 817: 'sports car', 829: 'streetcar', 864: 'tow truck',
-    # Psy, koty, zwierzęta (zakresy)
-    **{i: 'animal' for i in range(0, 398)},
-    # Ludzie i jedzenie (wybrane)
-    491: 'chain mail', 612: 'jinrikisha', 746: 'pug', 952: 'fig', 953: 'pineapple', 954: 'banana',
-    955: 'jackfruit', 968: 'cup', 504: 'coffee mug', 413: 'cellphone'
+BAD_IMAGENET_CLASSES = set(range(0, 398)) | {
+    436, 479, 511, 575, 609, 627, 656, 661, 717, 734,
+    751, 779, 817, 829, 864, 491, 612, 746, 952, 953,
+    954, 955, 968, 504, 413
 }
 
 # transformacje
@@ -110,16 +73,16 @@ class_names = ["A-1", "C-1", "C-13 (Serowiec)", "C-16", "C-18", "C-3/4", "C-7", 
 
 
 BUILDING_INFO = {
-    "A-1": {"wydzial": "jedynkaaaaaaaaaaaaaaaaa"},
-    "C-1": {"wydzial": "Haha"},
-    "C-13 (Serowiec)": {"wydzial": "pyszny ser"},
-    "C-16": {"wydzial": "sigma16"},
-    "C-18": {"wydzial": "sks"},
-    "C-3/4": {"wydzial": "cetrzy-cztery"},
-    "C-7": {"wydzial": "siedemB"},
-    "D-1": {"wydzial": "dih"},
-    "D-20": {"wydzial": "dupa20"},
-    "H-6": {"wydzial": "haha-szesc"}
+    "A-1": {"wydzial": "Gmach Główny (Wydziały PPT i Mechaniczno-Energetycznego)"},
+    "C-1": {"wydzial": "Informatyki i Telekomunikacji"},
+    "C-13 (Serowiec)": {"wydzial": "Dział Rekrutacji, Dział Pomocy Socjalnej"},
+    "C-16": {"wydzial": "Informatyki i Telekomunikacji"},
+    "C-18": {"wydzial": "Strefa Kultury Studenckiej"},
+    "C-3/4": {"wydzial": "Elektroniki, Fotoniki i Mikrosystemów"},
+    "C-7": {"wydzial": "Budownictwa Lądowego i Wodnego"},
+    "D-1": {"wydzial": "Inżynierii Środowiska"},
+    "D-20": {"wydzial": "Elektryczny"},
+    "H-6": {"wydzial": "Chemiczny"}
 }
 
 # endpoint przyjmujacy zdjecia - predykcja i zglaszanie bledow
